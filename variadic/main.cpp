@@ -1,5 +1,44 @@
+#include <unordered_map>
 #include "code.hpp"
 #include <set>
+#include <map>
+
+#include <iomanip>
+#include "cpu_profiler.hpp"
+
+
+namespace mkldnn {
+     namespace memory {
+          typedef std::vector<int> dims;
+     }
+}
+
+ static std::string dims2str(const mkldnn::memory::dims& operand_dims) {
+    std::string dstr = "";
+    for (size_t i = 0; i < operand_dims.size(); ++i) {
+      dstr += std::to_string(operand_dims[i]) + "-";
+    }
+    return dstr;
+  }
+
+static std::string GetHashJacek(const mkldnn::memory::dims& input_dims,    // NOLINT
+                             const mkldnn::memory::dims& weights_dims,  // NOLINT
+                             const std::vector<int>& strides,           // NOLINT
+                             const std::vector<int>& paddings,          // NOLINT
+                             const std::vector<int>& dilations,         // NOLINT
+                             int groups) {
+
+    
+
+    return dims2str(input_dims) + dims2str(weights_dims) + dims2str(strides) +
+           dims2str(paddings) + dims2str(dilations) + std::to_string(groups) ;
+           
+  }
+
+
+
+
+
 
 std::string Vec2String(const std::vector<int>& v)
 {
@@ -371,13 +410,66 @@ inline auto GetHash(const std::vector<int>& head, T&&...args) -> decltype(S::con
 
 static int counter=0;
 
+namespace perf {
+
+   template<class K, class V=int>
+   //using MAP = std::unordered_map<K,V>;
+  using MAP = std::map<K,V>;
+  
+   MAP<std::string> map_string;
+   MAP<u64> map_u64;
+   
+}
+
+INIT_PERF(); 
+
 
 template<class ... T>
 void UnitTest(std::map<u64,std::string>& s, T&&...args) {
 
+MAKE_PERF_VAR(); 
+
+   BEGIN(); 
        auto value = one::GetHash<>(std::forward<T>(args)...);
-       
-       std::string my = one::GetHash<debug::Converter<>>(std::forward<T>(args)... );
+
+   END("CRC64");    
+
+   BEGIN();
+
+           perf::map_u64[value]=1;
+   END("CRC64-MAP-INSERT");
+   BEGIN();
+           if(perf::map_u64.find(value)!=perf::map_u64.end())
+           {
+                std::cout << "error" << std::endl;
+           }   
+
+   END("CRC64-MAP-FIND");
+
+
+   BEGIN(); 
+          std::string my = one::GetHash<debug::Converter<>>(std::forward<T>(args)... );
+   END("MyString");
+
+   BEGIN(); 
+          std::string jacek = GetHashJacek(std::forward<T>(args)...);
+   END("Jacek");
+
+   BEGIN(); 
+            perf::map_string[jacek]=1;
+
+   END("JacekMap-INSERT");
+  BEGIN(); 
+           if(perf::map_string.find(jacek)!=perf::map_string.end())
+           {
+                std::cout << "error" << std::endl;
+           }   
+
+
+   END("JacekMap-FIND"); 
+
+
+
        counter++;
        auto it = s.find(value);
        if(it!=s.end())
@@ -389,14 +481,51 @@ void UnitTest(std::map<u64,std::string>& s, T&&...args) {
 
        s[value]= my;
        std::cout << "[TEST OK] :Uniq Key " << std::hex << value << std::endl;           
+
+       std::cout << jacek << std::endl;
+
+ 
+
+ 
+
+ 
+
 }
 
  using namespace  one;
 
+ 
+
 int main(int argc, char **argv) {
+ 
+ 
+ BEGIN_OVERALL();
+ 
+
+ 
+
+
+ 
 
    std::map<u64,std::string> check_set;
 
+
+   
+
+    for(int i=0;i<5;++i)
+    {
+
+    std::vector<int> v1{1,2,5,6}; 
+    std::vector<int> v2{1,2,5,6};
+    std::vector<int> v3{1,2,i,6};
+    std::vector<int> v4{1,2,5,6};
+    std::vector<int> v5{1,2,5,6};
+    std::vector<int> v6{i,2,5,6};
+    
+    UnitTest(check_set, v1,v2,v3,v4,v5, 5);
+    
+    }
+ /*
    UnitTest(check_set, std::vector<int>{1,4,5,6 },4,5,6 );
    UnitTest(check_set, std::vector<int>{0,4,5,6},4,5,6 );
    UnitTest(check_set, std::vector<int>{1,2,5,6},4,5,6 );
@@ -408,6 +537,34 @@ int main(int argc, char **argv) {
    for(int i=0;i<30;++i)
          UnitTest(check_set, std::vector<int>{1,2,5,6},i,i,i);
  
+  for(int i=3;i<30;++i)
+         UnitTest(check_set, std::vector<int>{1,i,5,6},i,i,i);
+ 
+ for(int i=3;i<30;++i)
+         UnitTest(check_set, std::vector<int>{1,i,5,i+6},i,i,i);
+ 
+
+ for(int i=3;i<30;++i)
+         UnitTest(check_set, std::vector<int>{1,i,5,i+6},i,i+1,i+2);
+ 
+
+ for(int i=3;i<30;++i)
+         UnitTest(check_set, std::vector<int>{1+i,i,5,i+6},i,i+1,i+2);
+ 
+ for(int i=3;i<30;++i)
+         UnitTest(check_set, std::vector<int>{1+i,i,5,i+6},i,i+1,i+2,i);
+ 
+ for(int i=3;i<30;++i)
+         UnitTest(check_set, i,i+1,i+2,i,i, std::vector<int>{3,4});
+ 
+*/
+
+
+
+
+END_OVERALL();
+
+
 
 
   // ctx.setBlob(key);

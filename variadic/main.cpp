@@ -1,5 +1,5 @@
 #include "code.hpp"
-
+#include <set>
 
 std::string Vec2String(const std::vector<int>& v)
 {
@@ -242,7 +242,7 @@ u64 update_crc64 (const void *buf, unint len, u64 crc)
 
 
 
-
+namespace debug { 
 template<int N=0>
 struct Converter {
    typedef Converter<N+1> next_one;
@@ -268,6 +268,71 @@ struct Converter {
    }
 
 };
+
+}
+
+template<int N=0>
+struct Converter {
+   typedef Converter<N+1> next_one;
+   enum {  value = N, mod_index = N % 255 };
+
+  
+   static u64 convert_algo(int input, u64 crc) {
+          for(int i=0;i<4;++i)
+             crc = CRC64_Table[(u8) (crc >> 56) ^ (*(reinterpret_cast<u8*>(&input)) + i)   ] ^ (crc << 8);
+          return ~crc;
+   }
+
+   
+   static u64 convert_algo(const std::vector<int>& input, u64 crc) {
+       
+          for(size_t i=0;i<input.size();++i)
+              crc = convert_algo(input[i],crc);
+          return ~crc;
+       
+   }
+
+     static u64 convert(int input) {
+             return convert_algo(input,CRC64_Table[(u8)mod_index]);
+     }
+
+/*
+   static u64 convert(int input) {
+         
+
+         auto crc = CRC64_Table[(u8)mod_index]; 
+       //  std::cout << "Mod index" << mod_index << std::endl;
+         for(int i=0;i<4;++i)
+          // crc = CRC64_Table[(u8) ((mod_index + i) % 255) ^ (*(reinterpret_cast<u8*>(&input)) + i)   ] ^ (crc << 8);
+           crc = CRC64_Table[(u8) (crc >> 56) ^ (*(reinterpret_cast<u8*>(&input)) + i)   ] ^ (crc << 8);
+          
+          // crc ^= CRC64_Table[(u8) ((mod_index + i) % 255)  ] ;
+
+          // CRC64_Table[(u8)(crc >> 56) ^ *b++] ^ (crc << 8);
+          return ~crc;
+        // return std::to_string(input);
+   }
+*/
+   static u64 convert(const std::vector<int>& input) {
+         
+        //  u64 s = CRC64_Table[(u8)mod_index];
+        //  for(auto item : input)
+         //         s = convert_algo(item,s) ;
+          return  convert_algo(input, CRC64_Table[(u8)mod_index] );
+   }
+
+   static u64 convert(const std::vector<int>& input, u64 left) {
+          return convert_algo(input,left);
+   }
+
+   static u64 convert(int input, u64 left) {
+          return convert_algo(input,left) ;
+   }
+
+};
+
+
+
 
 
 
@@ -304,22 +369,48 @@ inline auto GetHash(const std::vector<int>& head, T&&...args) -> decltype(S::con
 
 }
 
+static int counter=0;
 
+
+template<class ... T>
+void UnitTest(std::map<u64,std::string>& s, T&&...args) {
+
+       auto value = one::GetHash<>(std::forward<T>(args)...);
+       
+       std::string my = one::GetHash<debug::Converter<>>(std::forward<T>(args)... );
+       counter++;
+       auto it = s.find(value);
+       if(it!=s.end())
+       {
+            std::cout << "Unit Test Fails! "<<  std::hex << value << " test=" << counter << "my :" << my << 
+            " has conflict with " << it->second <<  std::endl;
+            exit (1);
+       } 
+
+       s[value]= my;
+       std::cout << "[TEST OK] :Uniq Key " << std::hex << value << std::endl;           
+}
 
  using namespace  one;
 
 int main(int argc, char **argv) {
-   
 
-   std::vector<int> v = { 1 ,2 , 3 };
+   std::map<u64,std::string> check_set;
 
-   auto key = GetHash<>(v,4,5,6,7,4,5); 
+   UnitTest(check_set, std::vector<int>{1,4,5,6 },4,5,6 );
+   UnitTest(check_set, std::vector<int>{0,4,5,6},4,5,6 );
+   UnitTest(check_set, std::vector<int>{1,2,5,6},4,5,6 );
+   UnitTest(check_set, std::vector<int>{1,2,5,6},5,5,6 );
+
+   for(int i=0;i<30;++i)
+         UnitTest(check_set, std::vector<int>{1,2,5,6},5,5,3,i);
  
-   std::cout <<  key << std::endl;
+   for(int i=0;i<30;++i)
+         UnitTest(check_set, std::vector<int>{1,2,5,6},i,i,i);
+ 
 
-   Context ctx;
 
-   ctx.setBlob(key);
+  // ctx.setBlob(key);
 
     return 0;
 }

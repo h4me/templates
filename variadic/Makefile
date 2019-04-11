@@ -1,4 +1,4 @@
-CC=g++ -Wall -std=c++0x 
+CC=g++ -Wall -g -std=c++0x 
 
 
 main: main.cpp code.cpp

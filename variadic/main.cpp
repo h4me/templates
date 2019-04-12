@@ -426,7 +426,7 @@ INIT_PERF();
 
 template<class ... T>
 void UnitTest(std::map<u64,std::string>& s, T&&...args) {
-
+       
 MAKE_PERF_VAR(); 
 
    BEGIN(); 
@@ -445,6 +445,13 @@ MAKE_PERF_VAR();
            }   
 
    END("CRC64-MAP-FIND");
+
+     BEGIN();
+       std::hash<int> hh_u64;
+       std::size_t hash_u64 = hh_u64(value); 
+      
+      END("CRC64-std::hash");
+          std::cout << "hash_u64 " << std::hex << hash_u64 << std::endl;
 
 
    BEGIN(); 
@@ -467,7 +474,13 @@ MAKE_PERF_VAR();
 
 
    END("JacekMap-FIND"); 
+   BEGIN();
+       std::hash<std::string> hh;
+       std::size_t hash_hh = hh(jacek); 
+      
 
+    END("std::hash");
+         std::cout << "std::Hash-str :" << hash_hh << std::endl; 
 
 
        counter++;

@@ -1,9 +1,11 @@
 #include <unordered_map>
-#include "code.hpp"
+#include <algorithm>
 #include <set>
 #include <map>
 
 #include <iomanip>
+#include "code.hpp"
+
 #include "cpu_profiler.hpp"
 
 
@@ -279,6 +281,8 @@ u64 update_crc64 (const void *buf, unint len, u64 crc)
 	return ~crc;
 }
 
+//#define diagme(x) std::cout << x << std::endl;
+#define diagme(x) ;
 
 
 namespace debug { 
@@ -313,18 +317,49 @@ struct Converter {
 template<int N=0>
 struct Converter {
    typedef Converter<N+1> next_one;
-   enum {  value = N, mod_index = N % 255 };
+  // enum {  value = N, mod_index = N % 255 };
+   enum {  value = N, mod_index = 0 };
 
-  
+   union CastMe {
+         int value;
+         unsigned char bytes[4];   
+   };
+   
    static u64 convert_algo(int input, u64 crc) {
+          diagme( " u64 convert_algo(int input="<< std::hex << input <<", u64 crc=" << crc << " ) " << value )   
+          static_assert(sizeof(int) == sizeof(CastMe), " Is not ok");
+         
+            // auto* Cast = reinterpret_cast<CastMe*>(&input);
+            for(int i=0;i<4;++i)
+             
+             crc = CRC64_Table[(u8) (crc >> 56 ) ^ reinterpret_cast<CastMe*>(&input)->bytes[i]   ] ^ (crc << 8);
+         /*
+             crc = CRC64_Table[(u8) (crc >> 56 ) ^ reinterpret_cast<CastMe*>(&input)->bytes[1]   ] ^ (crc << 8);
+         
+             crc = CRC64_Table[(u8) (crc >> 56 ) ^ reinterpret_cast<CastMe*>(&input)->bytes[2]   ] ^ (crc << 8);
+         
+             crc = CRC64_Table[(u8) (crc >> 56 ) ^ reinterpret_cast<CastMe*>(&input)->bytes[3]   ] ^ (crc << 8);
+         */
+         return ~crc;
+         /*
           for(int i=0;i<4;++i)
-             crc = CRC64_Table[(u8) (crc >> 56) ^ (*(reinterpret_cast<u8*>(&input)) + i)   ] ^ (crc << 8);
+          {
+            unsigned char byte =  *(reinterpret_cast<unsigned char*>(&input) + i);  
+            diagme( " loop["<<i<<"]  " << ((int) byte )  )   
+             
+          //   std::cout << (char) (*(reinterpret_cast<u8*>(&input)) + i) ;
+             
+             crc = CRC64_Table[(u8) (crc >> 56 ) ^ byte   ] ^ (crc << 8);
+          }
+         // std::cout << std::endl;
           return ~crc;
+          */
    }
 
    
    static u64 convert_algo(const std::vector<int>& input, u64 crc) {
-       
+         diagme( " u64 convert_algo(const std::vector<int>& input_size="<< input.size() <<", u64 crc ) " << value )   
+   
           for(size_t i=0;i<input.size();++i)
               crc = convert_algo(input[i],crc);
           return ~crc;
@@ -333,7 +368,7 @@ struct Converter {
 
 
    static u64 convert_algo(const std::string& input, u64 crc) {
-       
+         
           for(size_t i=0;i<input.size();++i)
               crc = convert_algo( (int) input[i] ,crc);
           return ~crc;
@@ -343,6 +378,8 @@ struct Converter {
 
 
      static u64 convert(int input) {
+             diagme( " u64 convert(int input="<< input <<") " << value )   
+   
              return convert_algo(input,CRC64_Table[(u8)mod_index]);
      }
 
@@ -372,14 +409,19 @@ struct Converter {
         //  u64 s = CRC64_Table[(u8)mod_index];
         //  for(auto item : input)
          //         s = convert_algo(item,s) ;
+    
+          diagme( " u64 convert(const std::vector<int>& input_size="<< input.size() <<") " << value )   
+    
           return  convert_algo(input, CRC64_Table[(u8)mod_index] );
    }
 
    static u64 convert(const std::vector<int>& input, u64 left) {
+           diagme( " u64 convert(const std::vector<int>& input_size="<< input.size() <<", u64 left="<< std::hex<< left << ") " << value )   
           return convert_algo(input,left);
    }
 
    static u64 convert(int input, u64 left) {
+           diagme( " u64 convert(int input="<< std::hex<< input <<", u64 left="<< left << ") " << value )   
           return convert_algo(input,left) ;
    }
 
@@ -398,19 +440,22 @@ namespace one {
 
 template<class S=Converter<>>
 inline auto GetHash(int head) -> decltype(S::convert(head))
-{            
+{  
+   diagme( " GetHash(int head)  " << S::value )               
    return S::convert(head);
 }
 template<class S=Converter<>>
 inline auto GetHash(const std::vector<int>& head) -> decltype(S::convert(head))
-{            
+{  
+      diagme( "GetHash(const std::vector<int>& head) " << S::value )            
    return S::convert(head);
 }
 
 
 template<class S=Converter<>>
 inline auto GetHash(const std::string& head) -> decltype(S::convert(head))
-{            
+{  
+    diagme( "GetHash(const std::string& head) " << S::value )           
    return S::convert(head);
 }
 
@@ -419,6 +464,7 @@ template<class S=Converter<>, class...T>
 inline auto GetHash(const std::string& head, T&&...args) -> decltype(S::convert(head))
 {
   // return S::convert(head) + GetHash<typename S::type>(std::forward<T>(args)...);
+  diagme( "GetHash(const std::string& head, T&&...args) " << S::value )
    return S::convert(head, GetHash<typename S::next_one>(std::forward<T>(args)...));                
 }
 
@@ -426,6 +472,7 @@ inline auto GetHash(const std::string& head, T&&...args) -> decltype(S::convert(
 template<class S=Converter<>, class...T>
 inline auto GetHash(int head, T&&...args) -> decltype(S::convert(head))
 {
+      diagme( "GetHash(int head, T&&...args) " << S::value )
   // return S::convert(head) + GetHash<typename S::type>(std::forward<T>(args)...);
    return S::convert(head, GetHash<typename S::next_one>(std::forward<T>(args)...));                
 }
@@ -434,6 +481,7 @@ template<class S=Converter<>, class...T>
 inline auto GetHash(const std::vector<int>& head, T&&...args) -> decltype(S::convert(head))
 {
   // return S::convert(head) + GetHash<typename S::type>(std::forward<T>(args)...);
+   diagme( "GetHash(const std::vector<int>& head, T&&...args) " << S::value )
    return S::convert(head, GetHash<typename S::next_one>(std::forward<T>(args)...));                
 }
 
@@ -449,6 +497,7 @@ namespace perf {
   
    MAP<std::string> map_string;
    MAP<u64> map_u64;
+   std::vector<u64> vec_u64;
    
 }
 
@@ -458,7 +507,7 @@ INIT_PERF();
 template<class ... T>
 void UnitTest(std::map<u64,std::string>& s, T&&...args) {
        
-     
+     int error = 0;
        
 MAKE_PERF_VAR(); 
 
@@ -471,12 +520,29 @@ MAKE_PERF_VAR();
            perf::map_u64[value]=1;
    END("CRC64-MAP-INSERT");
    BEGIN();
-           if(perf::map_u64.find(value)!=perf::map_u64.end())
+    
+           if(perf::map_u64.find(value)!=perf::map_u64.end()  )  
            {
-                std::cout << "error" << std::endl;
+               // std::cout << "error" << std::endl;
+                error++; 
            }   
 
    END("CRC64-MAP-FIND");
+   BEGIN();
+            perf::vec_u64.push_back(value);
+   END("CRC64-vec-insert");
+
+
+   BEGIN();
+          if( std::find(perf::vec_u64.begin(),perf::vec_u64.end(),value) !=  perf::vec_u64.end() )
+           {
+             //    std::cout << "error" << std::endl;
+                 error++;
+           }          
+
+   END("CRC64-vec-find");
+
+
 
    BEGIN();
      std::hash<u64> hh_u64;
@@ -499,7 +565,8 @@ MAKE_PERF_VAR();
   BEGIN(); 
            if(perf::map_string.find(jacek)!=perf::map_string.end())
            {
-                std::cout << "error" << std::endl;
+                error++;
+              //  std::cout << "error" << std::endl;
            }   
 
 
@@ -511,29 +578,29 @@ MAKE_PERF_VAR();
    END("std::hash<std::string>");
   
          std::cout << "std::Hash-str :" << hash_hh << std::endl; 
-         std::string big_key = "12-3-4-5 " + jacek;       
+        // std::string big_key = "12-3-4-5 " + jacek;       
 
    BEGIN();
 
-        std::size_t kkkk_my= one::GetHash<>(big_key);
+        std::size_t kkkk_my= one::GetHash<>(jacek);
 
    END("big-my");
 
    BEGIN();
 
-         std::size_t kkkk_std= hh(big_key);
+         std::size_t kkkk_std= hh(jacek);
 
    END("big-hash<std::string>");
 
 
-    std::cout << "kkkk_my=" << kkkk_my  << " " <<  kkkk_std << std::endl;
+    std::cout << "kkkk_my=" << kkkk_my  << " " <<  kkkk_std << " error" << error << std::endl;
 
        counter++;
        auto it = s.find(value);
        if(it!=s.end())
        {
-            std::cout << "Unit Test Fails! "<<  std::hex << value << " test=" << counter << "my :" << my << 
-            " has conflict with " << it->second <<  std::endl;
+            std::cout << "\n\n\nUnit Test Fails! "<<  std::hex << value << " test=" << counter << "my :" << my << 
+            " has conflict with " << it->second << "\n\n\n ###############FAIL####" << std::endl;
             exit (1);
        } 
 
@@ -566,19 +633,18 @@ int main(int argc, char **argv) {
  
 
    std::map<u64,std::string> check_set;
-
-
    
 
-    for(int i=0;i<5;++i)
+    for(int i=0;i<1400;++i)
     {
 
     std::vector<int> v1{1,2,5,6}; 
     std::vector<int> v2{1,2,5,6};
-    std::vector<int> v3{1,2,i,6};
+    std::vector<int> v3{1,2,5,6};
     std::vector<int> v4{1,2,5,6};
-    std::vector<int> v5{1,2,5,6};
-    std::vector<int> v6{i,2,5,6};
+    std::vector<int> v5{i,2,5,6};
+
+   // std::vector<int> v6{i+40,2,5,6};
     
     UnitTest(check_set, v1,v2,v3,v4,v5, 5);
     

@@ -331,7 +331,22 @@ struct Converter {
        
    }
 
+
+   static u64 convert_algo(const std::string& input, u64 crc) {
+       
+          for(size_t i=0;i<input.size();++i)
+              crc = convert_algo( (int) input[i] ,crc);
+          return ~crc;
+       
+   }
+
+
+
      static u64 convert(int input) {
+             return convert_algo(input,CRC64_Table[(u8)mod_index]);
+     }
+
+     static u64 convert(const std::string& input) {
              return convert_algo(input,CRC64_Table[(u8)mod_index]);
      }
 
@@ -392,6 +407,22 @@ inline auto GetHash(const std::vector<int>& head) -> decltype(S::convert(head))
    return S::convert(head);
 }
 
+
+template<class S=Converter<>>
+inline auto GetHash(const std::string& head) -> decltype(S::convert(head))
+{            
+   return S::convert(head);
+}
+
+
+template<class S=Converter<>, class...T>
+inline auto GetHash(const std::string& head, T&&...args) -> decltype(S::convert(head))
+{
+  // return S::convert(head) + GetHash<typename S::type>(std::forward<T>(args)...);
+   return S::convert(head, GetHash<typename S::next_one>(std::forward<T>(args)...));                
+}
+
+
 template<class S=Converter<>, class...T>
 inline auto GetHash(int head, T&&...args) -> decltype(S::convert(head))
 {
@@ -427,11 +458,12 @@ INIT_PERF();
 template<class ... T>
 void UnitTest(std::map<u64,std::string>& s, T&&...args) {
        
+     
+       
 MAKE_PERF_VAR(); 
 
    BEGIN(); 
        auto value = one::GetHash<>(std::forward<T>(args)...);
-
    END("CRC64");    
 
    BEGIN();
@@ -446,17 +478,15 @@ MAKE_PERF_VAR();
 
    END("CRC64-MAP-FIND");
 
-     BEGIN();
-       std::hash<int> hh_u64;
-       std::size_t hash_u64 = hh_u64(value); 
-      
-      END("CRC64-std::hash");
+   BEGIN();
+     std::hash<u64> hh_u64;
+     std::size_t hash_u64 = hh_u64(value); 
+   END("std::hash<u64>");
           std::cout << "hash_u64 " << std::hex << hash_u64 << std::endl;
-
 
    BEGIN(); 
           std::string my = one::GetHash<debug::Converter<>>(std::forward<T>(args)... );
-   END("MyString");
+   END("CRC64-MyString");
 
    BEGIN(); 
           std::string jacek = GetHashJacek(std::forward<T>(args)...);
@@ -477,11 +507,26 @@ MAKE_PERF_VAR();
    BEGIN();
        std::hash<std::string> hh;
        std::size_t hash_hh = hh(jacek); 
-      
-
-    END("std::hash");
+  
+   END("std::hash<std::string>");
+  
          std::cout << "std::Hash-str :" << hash_hh << std::endl; 
+         std::string big_key = "12-3-4-5 " + jacek;       
 
+   BEGIN();
+
+        std::size_t kkkk_my= one::GetHash<>(big_key);
+
+   END("big-my");
+
+   BEGIN();
+
+         std::size_t kkkk_std= hh(big_key);
+
+   END("big-hash<std::string>");
+
+
+    std::cout << "kkkk_my=" << kkkk_my  << " " <<  kkkk_std << std::endl;
 
        counter++;
        auto it = s.find(value);
